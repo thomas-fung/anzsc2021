@@ -13,7 +13,8 @@ knitr::opts_chunk$set(
 
 # Files for Poster presentation at ANZSC 2021
 
-- Some notes on customisation:
+## Some notes on customisation:
+- Colouring scheme
     - primary_colour: "#76232F" MQ's Deep Red
     - secondary_colour: "#80225F" MQ's Purple
     - accent_colour: "#373A36" MQ's Charcoal

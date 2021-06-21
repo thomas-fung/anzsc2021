@@ -3,7 +3,9 @@
 
 # Files for Poster presentation at ANZSC 2021
 
--   Some notes on customisation:
+## Some notes on customisation:
+
+-   Colouring scheme
     -   primary\_colour: “\#76232F” MQ’s Deep Red
     -   secondary\_colour: “\#80225F” MQ’s Purple
     -   accent\_colour: “\#373A36” MQ’s Charcoal
