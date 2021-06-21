@@ -1,0 +1,281 @@
+---
+main_topsize: 0.2 #percent coverage of the poster
+main_bottomsize: 0.1
+#ESSENTIALS
+title: '**Zero-inflated Poisson exponential families, with applications to time-series modelling of counts**'
+author:
+  - name: '**Thomas Fung**'
+    affil: 1
+    main: true
+    orcid: '0000-0003-2601-0728'
+    twitter: thomas.fung.dr
+    github: thomas0-fung
+    email: 'thomas.fung@mq.edu.au'
+  - name: Alan Huang
+    affil: 2
+    main: false
+    orcid: '0000-0002-7848-6755'
+    email: 'alan.huang@uq.edu.au'
+affiliation:
+  - num: 1
+    address: Department of Mathematics and Statistics, Macquarie University
+  - num: 2
+    address: School of Mathematics and Physics, University of Queensland
+main_findings:
+  - "ZIP Exponential families allow **easier interpretation** than standard ZIP<br> <br> Check out our **izipr** package!"
+primary_colour: "#76232F"
+secondary_colour: "#80225F"
+accent_colour: "#373A36"
+title_textsize:	"80pt"
+reference_textsize: "35px"
+logoleft_name: MQLogo-white.png
+logoright_name: izipr2.png
+logocenter_name: image.png
+output: 
+  posterdown::posterdown_betterport:
+    self_contained: true
+    pandoc_args: --mathjax
+    number_sections: false
+bibliography: packages.bib
+link-citations: true
+knit: pagedown::chrome_print
+---
+
+
+<style>
+#main-img-left {
+ width: 25%;
+}
+#main-img-center {
+ width: 10%;
+}
+#main-img-right {
+ width: 10%;
+}
+.section h4 {
+    break-before: column;
+}
+</style>
+
+
+```{r, include=FALSE}
+library(izipr)
+library(tidyverse)
+library(patchwork)
+library(knitr)
+library(formatR)
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  tidy = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  out.width = "100%"
+)
+opts_chunk$set(tidy.opts = list(width.cutoff = 60), tidy = TRUE)
+options(knitr.table.format = "html")
+```
+
+# Introduction
+
+In many count data processes, zero observations occur more frequently than expected from a nominal distribution. Perhaps the most well-known model for such scenarios is the zero-inflated Poisson (ZIP) of @lambertZeroInflatedPoissonRegression1992. ZIP can be constructed via two independent latent variables, namely, $B \sim \mbox{Bernoulli}$ with some probability $\pi$ of being zero and $P \sim \mbox{Poisson}$ with some rate $\lambda$. One desirable feature of ZIP is that the latent Bernoulli construction offers an explicit explanation of the excess zeros. However, the mean of the observed response can only be identified to the product $(1-\pi)\lambda$, using classical ZIP. The goodness-of-fit of ZIP models depends crucially on the individual models for $\pi$ and $\lambda$, but this can be not easy to check as neither process is fully observed.
+
+# ZIP exponential families
+
+Let $f(y|\pi, \lambda)$ be the mass function of a classical ZIP family with parameter $\pi$ & $\lambda$). Construct a family $\{ f_\theta(y); \theta \in \mathbb{R}\}$ of distributions, indexed by $\theta$, via exponential tilting:
+$$
+f_\theta (y) \propto \exp(\theta y) f(y|\pi, \lambda) \ , \quad \theta \in \mathbb{R}.
+$$
+
+Each $f_\theta(y)$ remains a ZIP distribution with new parameters $\pi_\theta$ and $\lambda_\theta$ given respectively by
+$$
+\label{eq:1}
+\pi_\theta = \frac{\pi}{\pi + (1-\pi) e^{\lambda (e^\theta-1)}} \quad \mbox{and} \quad
+\lambda_\theta = \lambda e^\theta \lambda_\theta = \lambda e^\theta.
+$$
+
+For mathematical convenience, we set 
+$$\lambda \equiv 1, \quad  \nu = \pi/(1-\pi)\quad \text{and}\quad  \mu = E(Y_{\theta}) = (1-\pi_\theta) \lambda_\theta. $$
+We then write the distribution as ZIP$_{\nu}(\mu)$. 
+
+ZIP$_{\nu}(\mu)$ allows us to construct simple, interpretable regression models via
+$$
+Y|X \sim \mbox{ZIP}_\nu(\mu(X^\top \beta)) \ , \mbox{ for some } \nu \in [0,\infty) 
+$$
+where $E(Y|X) = \mu(X^{\top}\beta)$ for some mean function $\mu(\cdot)$. This is implemented, with model diagnostic tools, in `izipr` package of @izipr. 
+
+#### 
+
+### Some pmf of ZIP$_{\nu}(\mu)$
+
+```{r, message = FALSE, fig.height=3}
+library(ggplot2)
+library(tidyverse)
+library(latex2exp)
+dat <- data.frame(
+  x = c(rep(0:6, 4), rep(0:10, 4), rep(0:15, 4)),
+  mu = c(rep(2, 7 * 4), rep(4, 11 * 4), rep(6, 16 * 4)),
+  nu = c(
+    rep(c(0, 1.5, 4, 19), rep(7, 4)),
+    rep(c(0, 1.5, 4, 19), rep(11, 4)),
+    rep(c(0, 1.5, 4, 19), rep(16, 4))
+  )
+)
+dat <- dat %>% mutate(
+  mu.fact = paste0("mu = ", mu),
+  nu.fact = factor(paste0("nu = ", nu),
+    levels = c(
+      "nu = 0", "nu = 1.5",
+      "nu = 4", "nu = 19"
+    )
+  ),
+  pmf = izipr::dizip(x, mu, nu)
+)
+ggplot(dat) +
+  geom_bar(aes(x = x, y = pmf), stat = "identity") +
+  facet_grid(nu.fact ~ mu.fact, scales = "free_x") +
+  ylab("P(Y=y)") +
+  xlab("y")
+```
+
+# `bioChemist` dataset 
+
+The dataset contains the number of articles produced by 915 graduate students in biochemistry during the last three years of their PhD, along with some information on the graduates, such as gender, marital status, the number of kids under 5, how prestigious the department is and mentor's publication record over the same period.
+
+ We fitted the classical ZIP using the `zeroinfl()` in the `pscl` package as well as our own `glm.izip()` in the `izipr` package.
+
+```{r}
+library(kableExtra)
+M1 <- pscl::zeroinfl(art ~ . | ., data = bioChemists)
+M1_summary1 <- round(summary(M1)$coefficients$count, 3)
+M1_summary2 <- round(summary(M1)$coefficients$zero, 3)
+M2 <- izipr::glm.izip(art ~ ., data = bioChemists)
+M2_summary <- round(summary(M2)$coefficients, 3)
+
+results_tab <- tibble(
+  pois_est =
+    as.character(M1_summary1[, 1]),
+  pois_se =
+    as.character(M1_summary1[, 2]),
+  zero_est =
+    as.character(M1_summary2[, 1]),
+  zero_se =
+    as.character(M1_summary2[, 2]),
+  zipr_est =
+    as.character(M2_summary[, 1]),
+  zipr_se =
+    as.character(M2_summary[, 2])
+) %>%
+  add_column(coefficients = c(
+    "(Intercept)", "femWomen",
+    "marMarried", "kid5", "phd",
+    "ment"
+  )) %>%
+  add_case(
+    pois_est = "--", pois_se = "--",
+    zero_est = "--",
+    zero_se = "--",
+    zipr_est = "0.572",
+    zipr_se = "0.088",
+    coefficients = "$\\nu$"
+  ) %>%
+  add_case(
+    pois_est = " ", pois_se = "3230.0",
+    zero_est = " ",
+    zero_se = " ",
+    zipr_est = "3238.2",
+    zipr_se = "",
+    coefficients = "AIC"
+  ) %>%
+  add_case(
+    pois_est = " ", pois_se = "3278.2",
+    zero_est = " ",
+    zero_se = " ",
+    zipr_est = "3267.1",
+    zipr_se = "",
+    coefficients = "BIC"
+  ) %>%
+  relocate(coefficients)
+
+kable(results_tab,
+  booktabs = TRUE,
+  col.names = c("coefficients", rep(c("est.", "se"), 3)), align = "c",
+  caption = "Estimated coefficients, standard errors, AIC and BIC values for the 'bioChemist' dataset using the classical ZIP and ZIP$_\\nu$ regression models"
+) %>%
+  add_header_above(c(" ", "Poisson component" = 2, "Bernoulli component" = 2, " " = 2)) %>%
+  add_header_above(c(" ",
+    "ZIP" = 4,
+    "ZIP$_\\nu$" = 2
+  )) %>%
+  row_spec(4, color = "red") %>%
+  row_spec(7, extra_css = "border-bottom: 1px solid")
+```
+
+
+# Interpretating the models
+
+Suppose we want to interpret the effect of `kid5`, the number of kids under 5. 
+
+For the classical ZIP, interpretation requires two-steps. Each additional kid under 5 is associated with an increase in the log-odds of being in the subpopulation that _did not have the opportunity to produce a paper_ of `0.217`, which translates to $\exp(0.217) = `r round(exp(0.217), 3)` \approx$ `24%` increase in odds.
+
+Given a graduate is in the other subpopulation that _have the opportunity to produce paper(s)_ then each additional kid under 5 is associated with a decrease in the expected number of papers by a factor of $\exp($`-0.143`) = 0.87, i.e. `13%` decrease. 
+
+For the ZIP$_\nu$ model, model interpretation is similar to a log-linaer model. The effect of each additional kid under 5 is a multiplicative factor of $\exp($`-0.190`) = 0.82, i.e. `18%` decrease to the expected number of papers produced. This value has already been adjusted for zero-inflation. 
+
+#### 
+
+# Predicting the zero-inflation
+
+Notice that all variables with a positive effect on the Poisson component of the classical ZIP model had a negative effect on the Bernoulli component. In other words, as the expected number of papers produced increases, the probability of being in the ``do not have opportunity to write a paper" (i.e., zero-inflation) subpopulation tends to decrease, and vice versa. 
+
+```{r, fig.height = 3}
+library(pscl)
+M.zip <- glm.izip(art ~ . - phd, data = bioChemists)
+M.zeroinfl <- zeroinfl(art ~ . - phd | . - phd, data = bioChemists)
+P3 <- ggplot(
+  data = data.frame(
+    x = predict(M.zeroinfl, type = "count"),
+    y = predict(M.zeroinfl, type = "zero")
+  ),
+  aes(x = x, y = y)
+) +
+  geom_point() +
+  xlab("Predicted mean of the Poisson component") +
+  ylab("Predicted zero-inflation probability") +
+  ggtitle("Figure 1: Zero-Inflated Probability vs mean of Poisson in Classical ZIP")
+P3
+
+P1 <- ggplot(data = data.frame(
+  x = predict(M.zeroinfl, type = "zero"),
+  y = M.zip$p_theta
+)) +
+  geom_point(aes(x = log(x / (1 - x)), y = log(y / (1 - y)))) +
+  xlab("estimated log(odds) of zeroinfl") +
+  ylab("estimated log(odds) of iZIP")
+P2 <- ggplot(data = data.frame(
+  x = M.zeroinfl$fitted.values,
+  y = M.zip$fitted_values
+)) +
+  geom_point(aes(x = x, y = y)) +
+  xlab("marginal mean for zeroinfl") +
+  ylab("marginal mean for iZIP")
+```
+
+The strong negative relationship here provides a clear example of how constant zero-inflation can be unrealistic in practice. But this is the assumption used in some time series model for counts in the literature as in @yauModelingZeroinflatedCount2004, @zhuZeroinflatedPoissonNegative2012, @yangStatespaceModelsCount2015a, 
+
+# ZIP$_\nu$ for count time-series
+
+ZIP$_\nu$ distributions prove even more useful for modelling count time-series, as we only need to construct a single ARMA-type recursion for the conditional mean of the process, rather than two latent processes which are only partially observed. 
+
+An integer-valued generalized autoregressive conditionally heteroskedastic (INGARCH) time-series model of order $(s, q)$ based on ZIP$_\nu$ distributions can be specified via
+$$
+\begin{aligned}
+& Y_t | \mathcal{F}_{t-1}  \sim  \mbox{ZIP}_\nu(\mu_t) \\
+& \mu_t = \delta + \alpha_1 \mu_{t-1} + \ldots  \alpha_s \mu_{t-s}  + \beta_1 Y_{t-1} + \ldots \beta_q Y_{t-q}
+\end{aligned}
+$$
+where $\delta, \alpha_1, \ldots, \alpha_s, \beta_1, \ldots, \beta_q > 0$. We call such processes $\text{ZIP}_\nu$-INGARCH$(s,q)$. This is also implemented in the `izipr` package. 
+
+If you are interested in what the `izipr` package can do, please scan the QR-code below. 
+
+# References
